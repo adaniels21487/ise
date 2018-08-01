@@ -66,7 +66,10 @@ class ERS(object):
                 xmltodict.parse(
                     content,
                     process_namespaces=True,
-                    namespaces={'ers.ise.cisco.com': None}
+                    namespaces={
+                        'ers.ise.cisco.com': None,
+                        'identity.ers.ise.cisco.com': None,
+                    }
                 )
             )
         )
