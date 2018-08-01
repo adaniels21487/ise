@@ -151,20 +151,24 @@ class ERS(object):
             result['error'] = resp.status_code
             return result
 
-    def get_endpoints(self):
+    def get_endpoints(self, group=None):
         """
         Get all endpoints
+        :param group: Name of the identity group
         :return: result dictionary
         """
         self.ise.headers.update({'Accept': 'application/vnd.com.cisco.ise.identity.endpoint.1.0+xml'})
-
-        resp = self.ise.get('{0}/config/endpoint'.format(self.url_base))
 
         result = {
             'success': False,
             'response': '',
             'error': '',
         }
+
+        if ( group == None):
+            resp = self.ise.get('{0}/config/endpoint'.format(self.url_base))
+        else:
+            resp = self.ise.get('{0}/config/endpoint?filter=groupId.EQ.{1}'.format(self.url_base, group))
 
         json_res = ERS._to_json(resp.text)['searchResult']
 
