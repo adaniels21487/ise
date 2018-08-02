@@ -100,7 +100,7 @@ class ERS(object):
 
         self.ise.headers.update({'Accept': 'application/vnd.com.cisco.ise.identity.endpointgroup.1.0+xml'})
 
-        resp = self.ise.get('{0}/config/endpointgroup'.format(self.url_base))
+        resp = self.ise.get('{0}/config/endpointgroup'.format(self.url_base),timeout=self.timeout)
 
         if resp.status_code == 200:
             result['success'] = True
@@ -126,7 +126,7 @@ class ERS(object):
             'error': '',
         }
 
-        resp = self.ise.get('{0}/config/endpointgroup?filter=name.EQ.{1}'.format(self.url_base, group))
+        resp = self.ise.get('{0}/config/endpointgroup?filter=name.EQ.{1}'.format(self.url_base, group),timeout=self.timeout)
         found_group = ERS._to_json(resp.text)
 
         if found_group['searchResult']['@total'] == '1':
@@ -168,10 +168,10 @@ class ERS(object):
             'error': '',
         }
 
-        if ( group == None):
-            resp = self.ise.get('{0}/config/endpoint'.format(self.url_base))
+        if (group == None):
+            resp = self.ise.get('{0}/config/endpoint'.format(self.url_base),timeout=self.timeout)
         else:
-            resp = self.ise.get('{0}/config/endpoint?filter=groupId.EQ.{1}'.format(self.url_base, group))
+            resp = self.ise.get('{0}/config/endpoint?filter=groupId.EQ.{1}'.format(self.url_base, group),timeout=self.timeout)
 
         json_res = ERS._to_json(resp.text)['searchResult']
 
@@ -216,7 +216,7 @@ class ERS(object):
                 'error': '',
             }
 
-            resp = self.ise.get('{0}/config/endpoint?filter=mac.EQ.{1}'.format(self.url_base, mac_address))
+            resp = self.ise.get('{0}/config/endpoint?filter=mac.EQ.{1}'.format(self.url_base, mac_address),timeout=self.timeout)
             found_endpoint = ERS._to_json(resp.text)
 
             if found_endpoint['searchResult']['@total'] == '1':
@@ -244,6 +244,127 @@ class ERS(object):
                 result['error'] = resp.status_code
                 return result
 
+    def add_endpoint(self, mac_address, description=None, group=None, profile=None):
+        """
+        Get endpoint details
+        :param mac_address: MAC address of the endpoint
+        :param description: Description of the endpoint
+        :param group: Static Group ID (GUID) of the endpoint
+        :param profile: Static profile (GUID) of the endpoint
+        :return: result dictionary
+        """
+        is_valid = ERS._mac_test(mac_address)
+
+        if not is_valid:
+            raise InvalidMacAddress('{0}. Must be in the form of AA:BB:CC:00:11:22'.format(mac_address))
+        else:
+            self.ise.headers.update({'Accept': 'application/vnd.com.cisco.ise.identity.endpoint.1.0+xml'})
+
+            result = {
+                'success': False,
+                'response': '',
+                'error': '',
+            }
+
+            staticprofile = 'false'
+            staticgroup = 'false'
+
+            if profile is not None:
+                staticprofile = 'true'
+            if group is not None:
+                staticgroup = 'true'
+
+            data = open(os.path.join(base_dir, 'xml/endpoint_add.xml'), 'r').read().format(
+                mac_address, group, description, None, None, False, profile, staticgroup, staticprofile
+            )
+
+            resp = self.ise.post('{0}/config/endpoint'.format(self.url_base), data=data, timeout=self.timeout)
+
+            if resp.status_code == 201:
+                result['success'] = True
+                result['response'] = '{0} Added Successfully'.format(mac_address)
+                return result
+            else:
+                result['response'] = ERS._to_json(resp.text)['ersResponse']['messages']['message']['title']
+                result['error'] = resp.status_code
+                return result
+
+    def update_endpoint(self, id, mac_address, description, group=None, profile=None):
+        """
+        Update endpoint details
+        :param id: ISE GUID of the MAC address of the endpoint
+        :param mac_address: MAC address of the endpoint
+        :param description: Description of the endpoint
+        :param group: Static Group ID (GUID) of the endpoint
+        :param profile: Static profile (GUID) of the endpoint
+        :return: result dictionary
+        """
+        is_valid = ERS._mac_test(mac_address)
+
+        if not is_valid:
+            raise InvalidMacAddress('{0}. Must be in the form of AA:BB:CC:00:11:22'.format(mac_address))
+        else:
+            self.ise.headers.update({'Accept': 'application/vnd.com.cisco.ise.identity.endpoint.1.0+xml'})
+
+            result = {
+                'success': False,
+                'response': '',
+                'error': '',
+            }
+
+            staticprofile = 'false'
+            staticgroup = 'false'
+
+            if profile is not None:
+                staticprofile = 'true'
+            if group is not None:
+                staticgroup = 'true'
+
+            data = open(os.path.join(base_dir, 'xml/endpoint_add.xml'), 'r').read().format(
+                mac_address, group, description, None, None, False, profile, staticgroup, staticprofile
+            )
+
+            resp = self.ise.put('{0}/config/endpoint/{1}'.format(self.url_base, id), data=data, timeout=self.timeout)
+
+            if resp.status_code == 200:
+                result['success'] = True
+                result['response'] = ERS._to_json(resp.text)['endpoint']
+                return result
+            elif resp.status_code == 404:
+                result['response'] = '{0} not found'.format(mac_address)
+                result['error'] = resp.status_code
+                return result
+            else:
+                result['response'] = ERS._to_json(resp.text)['ersResponse']['messages']['message']['title']
+                result['error'] = resp.status_code
+                return result
+
+    def delete_endpoint(self, id):
+        """
+        Delete endpoint
+        :param id: ISE GUID of the MAC address of the endpoint
+        :return: result dictionary
+        """
+        self.ise.headers.update({'Accept': 'application/vnd.com.cisco.ise.identity.endpoint.1.0+xml'})
+
+        result = {
+            'success': False,
+            'response': '',
+            'error': '',
+        }
+
+        resp = self.ise.delete('{0}/config/endpoint/{1}'.format(self.url_base, id),timeout=self.timeout)
+        found_endpoint = ERS._to_json(resp.text)
+
+        if resp.status_code == 204:
+            result['success'] = True
+            result['response'] = '{0} Deleted Successfully'.format(id)
+            return result
+        else:
+            result['response'] = ERS._to_json(resp.text)['ersResponse']['messages']['message']['title']
+            result['error'] = resp.status_code
+            return result
+
     def get_identity_groups(self):
         """
         Get all identity groups
@@ -257,7 +378,7 @@ class ERS(object):
 
         self.ise.headers.update({'Accept': 'application/vnd.com.cisco.ise.identity.identitygroup.1.0+xml'})
 
-        resp = self.ise.get('{0}/config/identitygroup'.format(self.url_base))
+        resp = self.ise.get('{0}/config/identitygroup'.format(self.url_base),timeout=self.timeout)
 
         if resp.status_code == 200:
             result['success'] = True
@@ -283,7 +404,7 @@ class ERS(object):
             'error': '',
         }
 
-        resp = self.ise.get('{0}/config/identitygroup?filter=name.EQ.{1}'.format(self.url_base, group))
+        resp = self.ise.get('{0}/config/identitygroup?filter=name.EQ.{1}'.format(self.url_base, group),timeout=self.timeout)
         found_group = ERS._to_json(resp.text)
 
         if found_group['searchResult']['@total'] == '1':
@@ -318,7 +439,7 @@ class ERS(object):
         """
         self.ise.headers.update({'Accept': 'application/vnd.com.cisco.ise.identity.internaluser.1.1+xml'})
 
-        resp = self.ise.get('{0}/config/internaluser'.format(self.url_base))
+        resp = self.ise.get('{0}/config/internaluser'.format(self.url_base),timeout=self.timeout)
 
         result = {
             'success': False,
@@ -364,12 +485,12 @@ class ERS(object):
             'error': '',
         }
 
-        resp = self.ise.get('{0}/config/internaluser?filter=name.EQ.{1}'.format(self.url_base, user_id))
+        resp = self.ise.get('{0}/config/internaluser?filter=name.EQ.{1}'.format(self.url_base, user_id),timeout=self.timeout)
         found_user = ERS._to_json(resp.text)
 
         if found_user['searchResult']['@total'] == '1':
             resp = self.ise.get('{0}/config/internaluser/{1}'.format(
-                    self.url_base, found_user['searchResult']['resources']['resource']['@id']))
+                    self.url_base, found_user['searchResult']['resources']['resource']['@id']),timeout=self.timeout)
             if resp.status_code == 200:
                 result['success'] = True
                 result['response'] = ERS._to_json(resp.text)['internaluser']
@@ -448,7 +569,7 @@ class ERS(object):
             'error': '',
         }
 
-        resp = self.ise.get('{0}/config/internaluser?filter=name.EQ.{1}'.format(self.url_base, user_id))
+        resp = self.ise.get('{0}/config/internaluser?filter=name.EQ.{1}'.format(self.url_base, user_id),timeout=self.timeout)
         found_user = ERS._to_json(resp.text)
 
         if found_user['searchResult']['@total'] == '1':
@@ -489,7 +610,7 @@ class ERS(object):
 
         self.ise.headers.update({'Accept': 'application/vnd.com.cisco.ise.network.networkdevicegroup.1.0+xml'})
 
-        resp = self.ise.get('{0}/config/networkdevicegroup'.format(self.url_base))
+        resp = self.ise.get('{0}/config/networkdevicegroup'.format(self.url_base),timeout=self.timeout)
 
         if resp.status_code == 200:
             result['success'] = True
@@ -509,7 +630,7 @@ class ERS(object):
         """
         self.ise.headers.update({'Accept': 'application/vnd.com.cisco.ise.network.networkdevicegroup.1.0+xml'})
 
-        resp = self.ise.get('{0}/config/networkdevicegroup/{1}'.format(self.url_base, device_group_oid))
+        resp = self.ise.get('{0}/config/networkdevicegroup/{1}'.format(self.url_base, device_group_oid),timeout=self.timeout)
 
         result = {
             'success': False,
@@ -537,7 +658,7 @@ class ERS(object):
         """
         self.ise.headers.update({'Accept': 'application/vnd.com.cisco.ise.network.networkdevice.1.0+xml'})
 
-        resp = self.ise.get('{0}/config/networkdevice'.format(self.url_base))
+        resp = self.ise.get('{0}/config/networkdevice'.format(self.url_base),timeout=self.timeout)
 
         result = {
             'success': False,
@@ -583,12 +704,12 @@ class ERS(object):
             'error': '',
         }
 
-        resp = self.ise.get('{0}/config/networkdevice?filter=name.EQ.{1}'.format(self.url_base, device))
+        resp = self.ise.get('{0}/config/networkdevice?filter=name.EQ.{1}'.format(self.url_base, device),timeout=self.timeout)
         found_device = ERS._to_json(resp.text)
 
         if found_device['searchResult']['@total'] == '1':
             resp = self.ise.get('{0}/config/networkdevice/{1}'.format(
-                    self.url_base, found_device['searchResult']['resources']['resource']['@id']))
+                    self.url_base, found_device['searchResult']['resources']['resource']['@id']),timeout=self.timeout)
             if resp.status_code == 200:
                 result['success'] = True
                 result['response'] = ERS._to_json(resp.text)['networkdevice']
