@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<ns4:endpoint description="{2}" id="id" name="{0}" xmlns:ers="ers.ise.cisco.com"
-              xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:ns4="identity.ers.ise.cisco.com">
-    <groupId>{1}</groupId>
-    <identityStore>{3}</identityStore>
-    <identityStoreId>{4}</identityStoreId>
-    <mac>{0}</mac>
-    <portalUser>{5}</portalUser>
-    <profileId>{6}</profileId>
-    <staticGroupAssignment>{7}</staticGroupAssignment>
+<ns3:endpoint description="{3}" id="{0}" name="{1}" xmlns:ns2="ers.ise.cisco.com"
+              xmlns:ns3="identity.ers.ise.cisco.com">
+    <groupId>{2}</groupId>
+    <identityStore>{4}</identityStore>
+    <identityStoreId>{5}</identityStoreId>
+    <mac>{1}</mac>
+    <portalUser>{6}</portalUser>
+    <profileId>{7}</profileId>
+    <staticGroupAssignment>{8}</staticGroupAssignment>
     <staticProfileAssignment>{8}</staticProfileAssignment>
-</ns4:endpoint>
+</ns3:endpoint>

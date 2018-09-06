@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<ns3:endpointgroup name="{1}" id="{0}" description="{2}"
+                   xmlns:ns2="ers.ise.cisco.com"
+                   xmlns:ns3="identity.ers.ise.cisco.com">
+    <systemDefined>false</systemDefined>
+</ns3:endpointgroup>
