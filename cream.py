@@ -8,6 +8,9 @@ from furl import furl
 
 import requests
 
+import logging, inspect
+logger = logging.getLogger(__name__)
+
 base_dir = os.path.dirname(__file__)
 
 
@@ -189,12 +192,16 @@ class ERS(object):
         else:
             return ERS._pass_ersresponse(result, resp)
 
-    def get_endpoints(self):
+    def get_endpoints(self, group=None):
         """
         Get all endpoints
+        :param group: Name of the identity group
         :return: result dictionary
         """
-        return self._get_objects('{0}/config/endpoint'.format(self.url_base))
+        if (group == None):
+            return self._get_objects('{0}/config/endpoint'.format(self.url_base))
+        else:
+            return self._get_objects('{0}/config/endpoint?filter=groupId.EQ.{1}'.format(self.url_base, group))
 
     def get_endpoint(self, mac_address):
         """
@@ -288,6 +295,61 @@ class ERS(object):
             if resp.status_code == 201:
                 result['success'] = True
                 result['response'] = '{0} Added Successfully'.format(name)
+                return result
+            else:
+                return ERS._pass_ersresponse(result, resp)
+
+    def update_endpoint(self,
+                        endpoint_id,
+                        name,
+                        mac,
+                        group_id,
+                        static_profile_assigment='false',
+                        static_group_assignment='true',
+                        profile_id='',
+                        description=''):
+        """
+        Modify an endpoint in the ISE database
+        :param endpoint_id: OID of the endpoint
+        :param name: Name
+        :param mac: Macaddress
+        :param group_id: OID of group to add endpoint in
+        :param static_profile_assigment: Set static profile
+        :param static_group_assignment: Set static group
+        :param profile_id: OID of profile
+        :param description: User description
+        :return: result dictionary
+        """
+
+        is_valid = ERS._mac_test(mac)
+        if not is_valid:
+            raise InvalidMacAddress(
+                '{0}. Must be in the form of AA:BB:CC:00:11:22'.format(mac))
+        else:
+            self.ise.headers.update(
+                {'ACCEPT': 'application/json', 'Content-Type': 'application/json'})
+
+            result = {
+                'success': False,
+                'response': '',
+                'error': '',
+            }
+
+            data = {"ERSEndPoint": {'id': endpoint_id, 'name': name, 'description': description, 'mac': mac,
+                                    'profileId': profile_id, 'staticProfileAssignment': static_profile_assigment,
+                                    'groupId': group_id, 'staticGroupAssignment': static_group_assignment,
+                                    'customAttributes': {'customAttributes': {'key1': 'value1'}}}}
+
+            module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
+            logger.debug("%s: Data: %s", module, data)
+
+            resp = self.ise.put('{0}/config/endpoint/{1}'.format(self.url_base, endpoint_id),
+                                 data=json.dumps(data), timeout=self.timeout)
+            if resp.status_code == 200:
+                # TODO: Extract changed fields
+                jsonresp = json.loads(resp.text)
+                result['success'] = True
+                result['response'] = jsonresp["UpdatedFieldsList"]
                 return result
             else:
                 return ERS._pass_ersresponse(result, resp)
