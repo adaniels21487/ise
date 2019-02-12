@@ -4,6 +4,7 @@ Class to configure Cisco ISE via the ERS API
 import json
 import os
 import re
+import math
 from furl import furl
 
 import requests
@@ -68,80 +69,63 @@ class ERS(object):
         result['error'] = resp.status_code
         return result
 
-    def _get_groups(self, url, size: int = 20, page: int = 1):
+    def _method_get(self, url, filter: str = None, size: int = 10, page: int = 1, all=True):
         """
-        Generic method for requesting group lists
+        Generic GET method for accessing the ISE API
         :param url: Base URL for requesting lists
+        :param filter: argument side of a ERS filter string. Default: None
         :param size: size of the page to return. Default: 20
         :param page: page to return. Default: 1
+        :param all: do we want all results, not just this page. Default: True
         :return: result dictionary
         """
         result = {
             'success': False,
-            'response': '',
+            'response': [],
             'error': '',
         }
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
+        logger.info("%s: Retrieving page: %s. %s items per page", module, page, size)
 
         # https://github.com/gruns/furl
         f = furl(url)
-        # TODO test for valid size 1<=x>=100
-        f.args['size'] = size
-        # TODO test for valid page number?
         f.args['page'] = page
+
+        # Test for valid size 1<=x>=100
+        if 1 <= size <= 100:
+            f.args['size'] = size
+        else:
+            # Not in range, use the default 20
+            f.args['size'] = 20
+
+        # TODO add filter valication
+        if filter:
+            f.args['filter'] = filter
 
         self.ise.headers.update(
             {'ACCEPT': 'application/json', 'Content-Type': 'application/json'})
         resp = self.ise.get(f.url)
 
+        logger.info("%s: Status: %s", module, resp.status_code)
         if resp.status_code == 200:
             result['success'] = True
             result['response'] = [(i['name'], i['id'], i['description'])
                                   for i in resp.json()['SearchResult']['resources']]
+            # Check for multiple pages.
+            total = int(resp.json()['SearchResult']['total'])
+            lastpage = math.ceil(total / size)
+            if (total > size) and (page < lastpage):
+                logger.debug("%s: We have more pages - This Page: %s, Total Pages: %s, Total Records: %s", module, page, lastpage, total)
+                # Recurse to get the next page.
+                innerresult = self._method_get(url=url, filter=filter, size=size, page=page+1, all=True)
+                if innerresult['success']:
+                    # Success, add the returned results to ours
+                    for i in innerresult['response']:
+                        result['response'].append([i[0], i[1], i[2]])
+                else:
+                    # error retrieving the next page, fail the whole tree.
+                    result = innerresult
             return result
-        else:
-            return ERS._pass_ersresponse(result, resp)
-
-    def _get_objects(self, url, filter: str = None, size: int = 20, page: int = 1):
-        """
-        Generic method for requesting objects lists
-        :param url: Base URL for requesting lists
-        :param filter: argument side of a ERS filter string. Default: None
-        :param size: size of the page to return. Default: 20
-        :param page: page to return. Default: 1
-        :return: result dictionary
-        """
-        result = {
-            'success': False,
-            'response': '',
-            'error': '',
-        }
-
-        self.ise.headers.update(
-            {'Accept': 'application/json', 'Content-Type': 'application/json'})
-
-        f = furl(url)
-        # TODO test for valid size 1<=x>=100
-        f.args['size'] = size
-        # TODO test for valid page number?
-        f.args['page'] = page
-        # TODO add filter valication
-        if filter:
-            f.args['filter'] = filter
-
-        resp = self.ise.get(f.url)
-
-        if resp.status_code == 200:
-            json_res = resp.json()['SearchResult']
-            if int(json_res['total']) >= 1:
-                result['success'] = True
-                result['response'] = [(i['name'], i['id'])
-                                      for i in json_res['resources']]
-                return result
-
-            elif int(json_res['total']) == 0:
-                result['success'] = True
-                result['response'] = []
-                return result
         else:
             return ERS._pass_ersresponse(result, resp)
 
@@ -150,7 +134,7 @@ class ERS(object):
         Get all endpoint identity groups
         :return: result dictionary
         """
-        return self._get_groups('{0}/config/endpointgroup'.format(self.url_base))
+        return self._method_get('{0}/config/endpointgroup'.format(self.url_base))
 
     def get_endpoint_group(self, group):
         """
@@ -166,6 +150,7 @@ class ERS(object):
             'response': '',
             'error': '',
         }
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
 
         resp = self.ise.get(
             '{0}/config/endpointgroup?filter=name.EQ.{1}'.format(self.url_base, group))
@@ -174,6 +159,8 @@ class ERS(object):
         if found_group['SearchResult']['total'] == 1:
             resp = self.ise.get('{0}/config/endpointgroup/{1}'.format(
                 self.url_base, found_group['SearchResult']['resources'][0]['id']))
+            logger.debug("%s: EndpointGroup Results: %s", module, resp.json())
+
             if resp.status_code == 200:
                 result['success'] = True
                 result['response'] = resp.json()['EndPointGroup']
@@ -192,16 +179,49 @@ class ERS(object):
         else:
             return ERS._pass_ersresponse(result, resp)
 
+    def update_endpoint_group(self, group_id, name='', description=''):
+        """
+        Update endpoint details
+        :param id: ISE GUID of the endpoint group
+        :param name: Name of the endpoint group
+        :param description: Description of the endpoint group
+        :return: result dictionary
+        """
+        self.ise.headers.update(
+            {'ACCEPT': 'application/json', 'Content-Type': 'application/json'})
+
+        result = {
+            'success': False,
+            'response': '',
+            'error': '',
+        }
+
+        data = {"ERSEndPoint": {'id': group_id, 'name': name, 'description': description}}
+
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
+        logger.debug("%s: Data: %s", module, data)
+
+        resp = self.ise.put('{0}/config/endpointgroup/{1}'.format(self.url_base, group_id),
+                                data=json.dumps(data), timeout=self.timeout)
+        if resp.status_code == 200:
+            # TODO: Extract changed fields
+            jsonresp = json.loads(resp.text)
+            result['success'] = True
+            result['response'] = jsonresp["UpdatedFieldsList"]
+            return result
+        else:
+            return ERS._pass_ersresponse(result, resp)
+
     def get_endpoints(self, group=None):
         """
         Get all endpoints
         :param group: Name of the identity group
         :return: result dictionary
         """
-        if (group == None):
-            return self._get_objects('{0}/config/endpoint'.format(self.url_base))
+        if group is None:
+            return self._method_get('{0}/config/endpoint'.format(self.url_base))
         else:
-            return self._get_objects('{0}/config/endpoint?filter=groupId.EQ.{1}'.format(self.url_base, group))
+            return self._method_get('{0}/config/endpoint'.format(self.url_base), filter='filter=groupId.EQ.{0}'.format(group))
 
     def get_endpoint(self, mac_address):
         """
@@ -399,7 +419,7 @@ class ERS(object):
         Get all identity groups
         :return: result dictionary
         """
-        return self._get_groups('{0}/config/identitygroup'.format(self.url_base))
+        return self._method_get('{0}/config/identitygroup'.format(self.url_base))
 
     def get_identity_group(self, group):
         """
@@ -448,7 +468,7 @@ class ERS(object):
         Get all internal users
         :return: List of tuples of user details
         """
-        return self._get_objects('{0}/config/internaluser'.format(self.url_base))
+        return self._method_get('{0}/config/internaluser'.format(self.url_base))
 
     def get_user(self, user_id):
         """
@@ -580,7 +600,7 @@ class ERS(object):
         Get a list tuples of device groups
         :return:
         """
-        return self._get_groups('{0}/config/networkdevicegroup'.format(self.url_base))
+        return self._method_get('{0}/config/networkdevicegroup'.format(self.url_base))
 
     def get_device_group(self, device_group_oid):
         """
@@ -616,7 +636,7 @@ class ERS(object):
         Get a list of devices
         :return: result dictionary
         """
-        self._get_objects('{0}/config/networkdevice'.format(self.url_base))
+        self._method_get('{0}/config/networkdevice'.format(self.url_base))
 
     def get_device(self, device):
         """
