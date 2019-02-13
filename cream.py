@@ -69,12 +69,12 @@ class ERS(object):
         result['error'] = resp.status_code
         return result
 
-    def _method_get(self, url, filter: str = None, size: int = 10, page: int = 1, all=True):
+    def _method_get(self, url, filter: str = None, size: int = 100, page: int = 1, all=True):
         """
         Generic GET method for accessing the ISE API
         :param url: Base URL for requesting lists
         :param filter: argument side of a ERS filter string. Default: None
-        :param size: size of the page to return. Default: 20
+        :param size: size of the page to return. Default: 100
         :param page: page to return. Default: 1
         :param all: do we want all results, not just this page. Default: True
         :return: result dictionary
@@ -95,8 +95,8 @@ class ERS(object):
         if 1 <= size <= 100:
             f.args['size'] = size
         else:
-            # Not in range, use the default 20
-            f.args['size'] = 20
+            # Not in range, use the default 100
+            f.args['size'] = 100
 
         # TODO add filter valication
         if filter:
@@ -105,12 +105,16 @@ class ERS(object):
         self.ise.headers.update(
             {'ACCEPT': 'application/json', 'Content-Type': 'application/json'})
         resp = self.ise.get(f.url)
+        logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
 
         logger.info("%s: Status: %s", module, resp.status_code)
         if resp.status_code == 200:
             result['success'] = True
-            result['response'] = [(i['name'], i['id'], i['description'])
-                                  for i in resp.json()['SearchResult']['resources']]
+            # Append the results to the response list
+            for i in resp.json()['SearchResult']['resources']]:
+                if not i['description']:
+                    i['description'] = ''
+                result['response'].append = (i['name'], i['id'], i['description'])
             # Check for multiple pages.
             total = int(resp.json()['SearchResult']['total'])
             lastpage = math.ceil(total / size)
@@ -221,7 +225,7 @@ class ERS(object):
         if group is None:
             return self._method_get('{0}/config/endpoint'.format(self.url_base))
         else:
-            return self._method_get('{0}/config/endpoint'.format(self.url_base), filter='filter=groupId.EQ.{0}'.format(group))
+            return self._method_get('{0}/config/endpoint'.format(self.url_base), filter='groupId.EQ.{0}'.format(group))
 
     def get_endpoint(self, mac_address):
         """
