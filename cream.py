@@ -65,6 +65,9 @@ class ERS(object):
 
     @staticmethod
     def _pass_ersresponse(result, resp):
+        module = __class__.__name__ + '.' + inspect.currentframe().f_code.co_name
+        logger.info("%s: Uh oh, we have an error: %s", module, resp.json())
+
         result['response'] = resp.json()['ERSResponse']['messages'][0]['title']
         result['error'] = resp.status_code
         return result
@@ -79,12 +82,12 @@ class ERS(object):
         :param all: do we want all results, not just this page. Default: True
         :return: result dictionary
         """
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
         result = {
             'success': False,
             'response': [],
             'error': '',
         }
-        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
         logger.info("%s: Retrieving page: %s. %s items per page", module, page, size)
 
         # https://github.com/gruns/furl
@@ -104,6 +107,8 @@ class ERS(object):
 
         self.ise.headers.update(
             {'ACCEPT': 'application/json', 'Content-Type': 'application/json'})
+
+        logger.info("%s: Calling ise.get with url: %s", module, f.url)
         resp = self.ise.get(f.url)
         logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
 
@@ -111,16 +116,16 @@ class ERS(object):
         if resp.status_code == 200:
             result['success'] = True
             # Append the results to the response list
-            for i in resp.json()['SearchResult']['resources']]:
-                if not i['description']:
-                    i['description'] = ''
-                result['response'].append = (i['name'], i['id'], i['description'])
+            for i in resp.json()['SearchResult']['resources']:
+                description = i.get('description', '')
+                result['response'].append([i['name'], i['id'], description])
             # Check for multiple pages.
             total = int(resp.json()['SearchResult']['total'])
             lastpage = math.ceil(total / size)
             if (total > size) and (page < lastpage):
                 logger.debug("%s: We have more pages - This Page: %s, Total Pages: %s, Total Records: %s", module, page, lastpage, total)
                 # Recurse to get the next page.
+                logger.info("%s: Calling _method_get for page: %s", module, page+1)
                 innerresult = self._method_get(url=url, filter=filter, size=size, page=page+1, all=True)
                 if innerresult['success']:
                     # Success, add the returned results to ours
@@ -138,6 +143,8 @@ class ERS(object):
         Get all endpoint identity groups
         :return: result dictionary
         """
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
+        logger.info("%s: Calling _method_get", module)
         return self._method_get('{0}/config/endpointgroup'.format(self.url_base))
 
     def get_endpoint_group(self, group):
@@ -156,14 +163,17 @@ class ERS(object):
         }
         module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
 
+        logger.info("%s: Calling ise.get with group: %s", module, group)
         resp = self.ise.get(
             '{0}/config/endpointgroup?filter=name.EQ.{1}'.format(self.url_base, group))
+        logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
         found_group = resp.json()
 
         if found_group['SearchResult']['total'] == 1:
+            logger.info("%s: Calling ise.get with endpointgroup: %s", module, found_group['SearchResult']['resources'][0]['id'])
             resp = self.ise.get('{0}/config/endpointgroup/{1}'.format(
                 self.url_base, found_group['SearchResult']['resources'][0]['id']))
-            logger.debug("%s: EndpointGroup Results: %s", module, resp.json())
+            logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
 
             if resp.status_code == 200:
                 result['success'] = True
@@ -179,7 +189,6 @@ class ERS(object):
             result['response'] = '{0} not found'.format(group)
             result['error'] = 404
             return result
-
         else:
             return ERS._pass_ersresponse(result, resp)
 
@@ -201,14 +210,14 @@ class ERS(object):
         }
 
         data = {"ERSEndPoint": {'id': group_id, 'name': name, 'description': description}}
-
         module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
-        logger.debug("%s: Data: %s", module, data)
 
+        logger.info("%s: Calling ise.put with group: %s, data: %s", module, group_id, data)
         resp = self.ise.put('{0}/config/endpointgroup/{1}'.format(self.url_base, group_id),
                                 data=json.dumps(data), timeout=self.timeout)
+        logger.info("%s: Raw response received from ISE: %s", module, resp.json())
         if resp.status_code == 200:
-            # TODO: Extract changed fields
+            # TODO: use resp.json()['UpdatedFieldsList']
             jsonresp = json.loads(resp.text)
             result['success'] = True
             result['response'] = jsonresp["UpdatedFieldsList"]
@@ -222,9 +231,12 @@ class ERS(object):
         :param group: Name of the identity group
         :return: result dictionary
         """
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
         if group is None:
+            logger.info("%s: Calling _method_get", module)
             return self._method_get('{0}/config/endpoint'.format(self.url_base))
         else:
+            logger.info("%s: Calling _method_get with group: %s", module, group)
             return self._method_get('{0}/config/endpoint'.format(self.url_base), filter='groupId.EQ.{0}'.format(group))
 
     def get_endpoint(self, mac_address):
@@ -234,6 +246,7 @@ class ERS(object):
         :return: result dictionary
         """
         is_valid = ERS._mac_test(mac_address)
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
 
         if not is_valid:
             raise InvalidMacAddress(
@@ -248,13 +261,17 @@ class ERS(object):
                 'error': '',
             }
 
+            logger.info("%s: Calling ise.get with MAC: %s", module, mac_address)
             resp = self.ise.get(
                 '{0}/config/endpoint?filter=mac.EQ.{1}'.format(self.url_base, mac_address))
+            logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
             found_endpoint = resp.json()
 
             if found_endpoint['SearchResult']['total'] == 1:
+                logger.info("%s: Calling ise.get with ID: %s", module, found_endpoint['SearchResult']['resources'][0]['id'])
                 resp = self.ise.get('{0}/config/endpoint/{1}'.format(
                     self.url_base, found_endpoint['SearchResult']['resources'][0]['id']))
+                logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
                 if resp.status_code == 200:
                     result['success'] = True
                     result['response'] = resp.json()['ERSEndPoint']
@@ -269,7 +286,6 @@ class ERS(object):
                 result['response'] = '{0} not found'.format(mac_address)
                 result['error'] = 404
                 return result
-
             else:
                 result['response'] = '{0} not found'.format(mac_address)
                 result['error'] = resp.status_code
@@ -294,8 +310,9 @@ class ERS(object):
         :param description: User description
         :return: result dictionary
         """
-
         is_valid = ERS._mac_test(mac)
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
+
         if not is_valid:
             raise InvalidMacAddress(
                 '{0}. Must be in the form of AA:BB:CC:00:11:22'.format(mac))
@@ -314,8 +331,10 @@ class ERS(object):
                                     'groupId': group_id, 'staticGroupAssignment': static_group_assignment,
                                     'customAttributes': {'customAttributes': {'key1': 'value1'}}}}
 
+            logger.info("%s: Calling ise.post with data: %s", module, json.dumps(data))
             resp = self.ise.post('{0}/config/endpoint'.format(self.url_base),
                                  data=json.dumps(data), timeout=self.timeout)
+            logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
             if resp.status_code == 201:
                 result['success'] = True
                 result['response'] = '{0} Added Successfully'.format(name)
@@ -344,8 +363,9 @@ class ERS(object):
         :param description: User description
         :return: result dictionary
         """
-
         is_valid = ERS._mac_test(mac)
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
+
         if not is_valid:
             raise InvalidMacAddress(
                 '{0}. Must be in the form of AA:BB:CC:00:11:22'.format(mac))
@@ -364,21 +384,18 @@ class ERS(object):
                                     'groupId': group_id, 'staticGroupAssignment': static_group_assignment,
                                     'customAttributes': {'customAttributes': {'key1': 'value1'}}}}
 
-            module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
-            logger.debug("%s: Data: %s", module, data)
-
+            logger.info("%s: Calling ise.put with data: %s", module, json.dumps(data))
             resp = self.ise.put('{0}/config/endpoint/{1}'.format(self.url_base, endpoint_id),
                                  data=json.dumps(data), timeout=self.timeout)
+            logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
             if resp.status_code == 200:
-                # TODO: Extract changed fields
-                jsonresp = json.loads(resp.text)
                 result['success'] = True
-                result['response'] = jsonresp["UpdatedFieldsList"]
+                result['response'] = resp.json()["UpdatedFieldsList"]
                 return result
             else:
                 return ERS._pass_ersresponse(result, resp)
 
-    def delete_endpoint(self, mac):
+    def delete_endpoint(self, mac=None, endpoint_id=None):
         """
         Delete an endpoint
         :param mac: Endpoint Macaddress
@@ -392,28 +409,34 @@ class ERS(object):
             'response': '',
             'error': '',
         }
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
 
-        resp = self.ise.get(
-            '{0}/config/endpoint?filter=mac.EQ.{1}'.format(self.url_base, mac))
-        found_endpoint = resp.json()
-        if found_endpoint['SearchResult']['total'] == 1:
-            endpoint_oid = found_endpoint['SearchResult']['resources'][0]['id']
-            resp = self.ise.delete(
-                '{0}/config/endpoint/{1}'.format(self.url_base, endpoint_oid), timeout=self.timeout)
+        # if ID is blank lets go find it.
+        if not endpoint_id:
+            logger.debug("%s: ID is not set, lets see if we have a MAC address", module)
+            if not mac:
+                # uh, oh. no mac, cant continue
+                logger.debug("%s: No ID or MAC, we can't continue", module)
+                result['description'] = 'Input error, delete could not be processed.'
+                return result
+            
+            # lets find the ID from the MAC
+            logger.info("%s: Calling get_endpoint with MAC: %s", module, mac)
+            result = self.get_endpoint(mac)
+            endpoint_id = result['response']['0']['id']
 
-            if resp.status_code == 204:
-                result['success'] = True
-                result['response'] = '{0} Deleted Successfully'.format(mac)
-                return result
-            elif resp.status_code == 404:
-                result['response'] = '{0} not found'.format(mac)
-                result['error'] = resp.status_code
-                return result
-            else:
-                return ERS._pass_ersresponse(result, resp)
-        elif found_endpoint['SearchResult']['total'] == 0:
+        logger.info("%s: Calling ise.delete with endpoint_id: %s", module, endpoint_id)
+        resp = self.ise.delete(
+            '{0}/config/endpoint/{1}'.format(self.url_base, endpoint_id), timeout=self.timeout)
+        logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
+
+        if resp.status_code == 204:
+            result['success'] = True
+            result['response'] = '{0} Deleted Successfully'.format(mac)
+            return result
+        elif resp.status_code == 404:
             result['response'] = '{0} not found'.format(mac)
-            result['error'] = 404
+            result['error'] = resp.status_code
             return result
         else:
             return ERS._pass_ersresponse(result, resp)
@@ -423,6 +446,8 @@ class ERS(object):
         Get all identity groups
         :return: result dictionary
         """
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
+        logger.info("%s: Calling _method_get", module)
         return self._method_get('{0}/config/identitygroup'.format(self.url_base))
 
     def get_identity_group(self, group):
@@ -439,14 +464,18 @@ class ERS(object):
             'response': '',
             'error': '',
         }
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
 
+        logger.info("%s: Calling ise.get with group: %s", module, group)
         resp = self.ise.get(
             '{0}/config/identitygroup?filter=name.EQ.{1}'.format(self.url_base, group))
+        logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
         found_group = resp.json()
 
         if found_group['SearchResult']['total'] == 1:
             resp = self.ise.get('{0}/config/identitygroup/{1}'.format(
                 self.url_base, found_group['SearchResult']['resources'][0]['id']))
+            logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
             if resp.status_code == 200:
                 result['success'] = True
                 result['response'] = resp.json()['IdentityGroup']
@@ -461,7 +490,6 @@ class ERS(object):
             result['response'] = '{0} not found'.format(group)
             result['error'] = 404
             return result
-
         else:
             result['response'] = '{0} not found'.format(group)
             result['error'] = resp.status_code
@@ -472,6 +500,8 @@ class ERS(object):
         Get all internal users
         :return: List of tuples of user details
         """
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
+        logger.info("%s: Calling _method_get", module)
         return self._method_get('{0}/config/internaluser'.format(self.url_base))
 
     def get_user(self, user_id):
@@ -488,14 +518,19 @@ class ERS(object):
             'response': '',
             'error': '',
         }
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
 
+        logger.info("%s: Calling ise.get with user: %s", module, user_id)
         resp = self.ise.get(
             '{0}/config/internaluser?filter=name.EQ.{1}'.format(self.url_base, user_id))
+        logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
         found_user = resp.json()
 
         if found_user['SearchResult']['total'] == 1:
+            logger.info("%s: Calling ise.get with user id: %s", module, found_user['SearchResult']['resources'][0]['id'])
             resp = self.ise.get('{0}/config/internaluser/{1}'.format(
                 self.url_base, found_user['SearchResult']['resources'][0]['id']))
+            logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
             if resp.status_code == 200:
                 result['success'] = True
                 result['response'] = resp.json()['InternalUser']
@@ -536,21 +571,24 @@ class ERS(object):
         :param description: User description
         :return: result dictionary
         """
+        self.ise.headers.update(
+            {'ACCEPT': 'application/json', 'Content-Type': 'application/json'})
+
         result = {
             'success': False,
             'response': '',
             'error': '',
         }
-
-        self.ise.headers.update(
-            {'ACCEPT': 'application/json', 'Content-Type': 'application/json'})
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
 
         data = {"InternalUser": {'name': user_id, 'password': password, 'enablePassword': enable,
                                  'firstName': first_name, 'lastName': last_name, 'email': email,
                                  'description': description, 'identityGroups': user_group_oid}}
 
+        logger.info("%s: Calling ise.post with data: %s", module, data.json())
         resp = self.ise.post('{0}/config/internaluser'.format(self.url_base),
                              data=json.dumps(data), timeout=self.timeout)
+        logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
         if resp.status_code == 201:
             result['success'] = True
             result['response'] = '{0} Added Successfully'.format(user_id)
@@ -572,15 +610,20 @@ class ERS(object):
             'response': '',
             'error': '',
         }
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
 
+        logger.info("%s: Calling ise.get with user: %s", module, user_id)
         resp = self.ise.get(
             '{0}/config/internaluser?filter=name.EQ.{1}'.format(self.url_base, user_id))
+        logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
         found_user = resp.json()
 
         if found_user['SearchResult']['total'] == 1:
             user_oid = found_user['SearchResult']['resources'][0]['id']
+            logger.info("%s: Calling ise.delete with user_id: %s", module, user_oid)
             resp = self.ise.delete(
                 '{0}/config/internaluser/{1}'.format(self.url_base, user_oid), timeout=self.timeout)
+            logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
 
             if resp.status_code == 204:
                 result['success'] = True
@@ -604,6 +647,8 @@ class ERS(object):
         Get a list tuples of device groups
         :return:
         """
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
+        logger.info("%s: Calling _method_get", module)
         return self._method_get('{0}/config/networkdevicegroup'.format(self.url_base))
 
     def get_device_group(self, device_group_oid):
@@ -612,17 +657,20 @@ class ERS(object):
         :param device_group_oid: oid of the device group
         :return: result dictionary
         """
-        self.ise.headers.update(
-            {'ACCEPT': 'application/json', 'Content-Type': 'application/json'})
-
-        resp = self.ise.get(
-            '{0}/config/networkdevicegroup/{1}'.format(self.url_base, device_group_oid))
-
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
         result = {
             'success': False,
             'response': '',
             'error': '',
         }
+
+        self.ise.headers.update(
+            {'ACCEPT': 'application/json', 'Content-Type': 'application/json'})
+
+        logger.info("%s: Calling ise.get with networkdevicegroup: %s", module, device_group_oid)
+        resp = self.ise.get(
+            '{0}/config/networkdevicegroup/{1}'.format(self.url_base, device_group_oid))
+        logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
 
         if resp.status_code == 200:
             result['success'] = True
@@ -640,6 +688,8 @@ class ERS(object):
         Get a list of devices
         :return: result dictionary
         """
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
+        logger.info("%s: Calling _method_get", module)
         self._method_get('{0}/config/networkdevice'.format(self.url_base))
 
     def get_device(self, device):
@@ -648,22 +698,27 @@ class ERS(object):
         :param device: User ID
         :return: result dictionary
         """
-        self.ise.headers.update(
-            {'ACCEPT': 'application/json', 'Content-Type': 'application/json'})
-
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
         result = {
             'success': False,
             'response': '',
             'error': '',
         }
 
+        self.ise.headers.update(
+            {'ACCEPT': 'application/json', 'Content-Type': 'application/json'})
+
+        logger.info("%s: Calling ise.get with device: %s", module, device)
         resp = self.ise.get(
             '{0}/config/networkdevice?filter=name.EQ.{1}'.format(self.url_base, device))
+        logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
         found_device = resp.json()
 
         if found_device['SearchResult']['total'] == 1:
+            logger.info("%s: Calling ise.get with device id: %s", module, found_device['SearchResult']['resources'][0]['id'])
             resp = self.ise.get('{0}/config/networkdevice/{1}'.format(
                 self.url_base, found_device['SearchResult']['resources'][0]['id']))
+            logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
             if resp.status_code == 200:
                 result['success'] = True
                 result['response'] = resp.json()['NetworkDevice']
@@ -705,6 +760,7 @@ class ERS(object):
         :param dev_profile: Device profile
         :return: Result dictionary
         """
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
         result = {
             'success': False,
             'response': '',
@@ -739,8 +795,10 @@ class ERS(object):
                                   }
                 }
 
+        logger.info("%s: Calling ise.post with data: %s", module, data.json())
         resp = self.ise.post('{0}/config/networkdevice'.format(self.url_base),
                              data=json.dumps(data), timeout=self.timeout)
+        logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
 
         if resp.status_code == 201:
             result['success'] = True
@@ -755,22 +813,27 @@ class ERS(object):
         :param device: Device ID
         :return: Result dictionary
         """
-        self.ise.headers.update(
-            {'ACCEPT': 'application/json', 'Content-Type': 'application/json'})
-
+        module = self.__class__.__name__ + '.' + inspect.currentframe().f_code.co_name
         result = {
             'success': False,
             'response': '',
             'error': '',
         }
 
+        self.ise.headers.update(
+            {'ACCEPT': 'application/json', 'Content-Type': 'application/json'})
+
+        logger.info("%s: Calling ise.get with device: %s", module, device)
         resp = self.ise.get(
             '{0}/config/networkdevice?filter=name.EQ.{1}'.format(self.url_base, device))
+        logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
         found_device = resp.json()
         if found_device['SearchResult']['total'] == 1:
             device_oid = found_device['SearchResult']['resources'][0]['id']
+            logger.info("%s: Calling ise.delete with device id: %s", module, device_oid)
             resp = self.ise.delete(
                 '{0}/config/networkdevice/{1}'.format(self.url_base, device_oid), timeout=self.timeout)
+            logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
 
             if resp.status_code == 204:
                 result['success'] = True
