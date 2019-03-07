@@ -334,7 +334,7 @@ class ERS(object):
             logger.info("%s: Calling ise.post with data: %s", module, json.dumps(data))
             resp = self.ise.post('{0}/config/endpoint'.format(self.url_base),
                                  data=json.dumps(data), timeout=self.timeout)
-            logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
+            logger.info("%s: Raw response returned from ISE: %s", module, resp)
             if resp.status_code == 201:
                 result['success'] = True
                 result['response'] = '{0} Added Successfully'.format(name)
@@ -428,7 +428,7 @@ class ERS(object):
         logger.info("%s: Calling ise.delete with endpoint_id: %s", module, endpoint_id)
         resp = self.ise.delete(
             '{0}/config/endpoint/{1}'.format(self.url_base, endpoint_id), timeout=self.timeout)
-        logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
+        logger.info("%s: Raw response returned from ISE: %s", module, resp)
 
         if resp.status_code == 204:
             result['success'] = True
