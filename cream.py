@@ -27,7 +27,7 @@ class InvalidMacAddress(Exception):
 class ERS(object):
     def __init__(
         self,
-        ise_node,
+        ise_uri,
         ers_user,
         ers_pass,
         verify=False,
@@ -36,18 +36,17 @@ class ERS(object):
     ):
         """
         Class to interact with Cisco ISE via the ERS API
-        :param ise_node: IP Address of the primary admin ISE node
+        :param ise_uri: ERS URI including protocol and port
         :param ers_user: ERS username
         :param ers_pass: ERS password
         :param verify: Verify SSL cert
         :param disable_warnings: Disable requests warnings
         :param timeout: Query timeout
         """
-        self.ise_node = ise_node
         self.user_name = ers_user
         self.user_pass = ers_pass
 
-        self.url_base = "https://{0}:9060/ers".format(self.ise_node)
+        self.url_base = "{0}/ers".format(ise_uri)
         self.ise = requests.session()
         self.ise.auth = (self.user_name, self.user_pass)
         # http://docs.python-requests.org/en/latest/user/advanced/#ssl-cert-verification
