@@ -1,11 +1,8 @@
-from cream import ERS
-import json
-
-from unittest import TestCase
-from unittest.mock import patch, Mock
+from .cream import ERS
+import unittest
 
 
-class ErsTest(TestCase):
+class ErsTest(unittest.TestCase):
     def setUp(self):
         self.ise = ERS("ise_node", "ers_user", "ers_pass")
 
