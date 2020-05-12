@@ -51,6 +51,9 @@ class ERS:
         if self.disable_warnings:
             requests.packages.urllib3.disable_warnings()
 
+    def close(self):
+        self.ise.close()
+
     @staticmethod
     def _mac_test(mac):
         """
@@ -150,9 +153,10 @@ class ERS:
         logger.info("%s: Calling _method_get", module)
         return self._method_get("{0}/config/endpointgroup".format(self.url_base))
 
-    def get_endpoint_group(self, group):
+    def get_endpoint_group(self, group=False, pk=False):
         """
         Get endpoint identity group details
+        :param pk: id of identity group
         :param group: Name of the identity group
         :return: result dictionary
         """
@@ -161,37 +165,35 @@ class ERS:
         result = {"success": False, "response": "", "error": ""}
         module = self.__class__.__name__ + "." + inspect.currentframe().f_code.co_name
 
-        logger.info("%s: Calling ise.get with group: %s", module, group)
-        resp = self.ise.get("{0}/config/endpointgroup?filter=name.EQ.{1}".format(self.url_base, group))
-        logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
-        found_group = resp.json()
+        if group:
+            logger.debug("%s: Group is set, I want group by name: %s", module, group)
 
-        if found_group["SearchResult"]["total"] == 1:
-            logger.info(
-                "%s: Calling ise.get with endpointgroup: %s", module, found_group["SearchResult"]["resources"][0]["id"],
-            )
-            resp = self.ise.get(
-                "{0}/config/endpointgroup/{1}".format(self.url_base, found_group["SearchResult"]["resources"][0]["id"])
-            )
+            logger.info("%s: Calling ise.get with group: %s", module, group)
+            resp = self.ise.get("{0}/config/endpointgroup?filter=name.EQ.{1}".format(self.url_base, group))
             logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
+            found_group = resp.json()
 
-            if resp.status_code == 200:
-                result["success"] = True
-                result["response"] = resp.json()["EndPointGroup"]
-                return result
+            if found_group["SearchResult"]["total"] == 1:
+                pk = found_group["SearchResult"]["resources"][0]["id"]
 
-            if resp.status_code == 404:
-                result["response"] = "{0} not found".format(group)
+        if pk:
+            logger.debug("%s: PK is set, I want group by ID: %s", module, pk)
+
+            logger.info("%s: Calling ise.get with pk: %s", module, pk)
+            resp = self.ise.get("{0}/config/endpointgroup/{1}".format(self.url_base, pk))
+            if resp.status_code != 200:
+                result["response"] = "Error..."
                 result["error"] = resp.status_code
                 return result
 
-            return ERS._pass_ersresponse(result, resp)
-
-        if found_group["SearchResult"]["total"] == 0:
-            result["response"] = "{0} not found".format(group)
-            result["error"] = 404
+            logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
+            result["success"] = True
+            result["response"] = resp.json()["EndPointGroup"]
             return result
 
+        logger.info("%s: No PK set, return 404.", module)
+        result["response"] = "Error..."
+        result["error"] = resp.status_code
         return ERS._pass_ersresponse(result, resp)
 
     def update_endpoint_group(self, group_id, name="", description=""):
