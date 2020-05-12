@@ -8,7 +8,7 @@ class ErsTest(unittest.TestCase):
         self.ise = ERS(
             os.environ.get("ERS_URI", "https://10.0.0.1:9060"),
             os.environ.get("ERS_USERNAME", False),
-            os.environ.get("ERS_PASSWORD", False)
+            os.environ.get("ERS_PASSWORD", False),
         )
 
     def tearDown(self):
@@ -19,11 +19,11 @@ class ErsTest(unittest.TestCase):
         self.assertTrue(result)
 
     def test_get_endpointgroup_by_name(self):
-        data = self.ise.get_endpoint_group(group='Blacklist')
+        data = self.ise.get_endpoint_group(group="Blacklist")
         self.assertTrue(len(data) > 0)
 
     def test_get_endpointgroup_by_id(self):
-        data = self.ise.get_endpoint_group(pk='aa000c30-8bff-11e6-996c-525400b48521')
+        data = self.ise.get_endpoint_group(pk="aa000c30-8bff-11e6-996c-525400b48521")
         self.assertTrue(len(data) > 0)
 
 
