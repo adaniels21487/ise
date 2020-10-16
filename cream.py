@@ -25,7 +25,13 @@ class InvalidMacAddress(Exception):
 
 class ERS:
     def __init__(
-        self, ise_uri, ers_user, ers_pass, verify=False, disable_warnings=False, timeout=2,
+        self,
+        ise_uri,
+        ers_user,
+        ers_pass,
+        verify=False,
+        disable_warnings=False,
+        timeout=2,
     ):  # pylint: disable=too-many-arguments
         """
         Class to interact with Cisco ISE via the ERS API
@@ -213,7 +219,9 @@ class ERS:
 
         logger.info("%s: Calling ise.put with group: %s, data: %s", module, group_id, data)
         resp = self.ise.put(
-            "{0}/config/endpointgroup/{1}".format(self.url_base, group_id), data=json.dumps(data), timeout=self.timeout,
+            "{0}/config/endpointgroup/{1}".format(self.url_base, group_id),
+            data=json.dumps(data),
+            timeout=self.timeout,
         )
         logger.info("%s: Raw response received from ISE: %s", module, resp.json())
         if resp.status_code == 200:
@@ -237,7 +245,10 @@ class ERS:
             return self._method_get("{0}/config/endpoint".format(self.url_base))
 
         logger.info("%s: Calling _method_get with group: %s", module, group)
-        return self._method_get("{0}/config/endpoint".format(self.url_base), ers_filter="groupId.EQ.{0}".format(group),)
+        return self._method_get(
+            "{0}/config/endpoint".format(self.url_base),
+            ers_filter="groupId.EQ.{0}".format(group),
+        )
 
     def get_endpoint(self, mac_address):
         """
@@ -262,10 +273,15 @@ class ERS:
 
         if found_endpoint["SearchResult"]["total"] == 1:
             logger.info(
-                "%s: Calling ise.get with ID: %s", module, found_endpoint["SearchResult"]["resources"][0]["id"],
+                "%s: Calling ise.get with ID: %s",
+                module,
+                found_endpoint["SearchResult"]["resources"][0]["id"],
             )
             resp = self.ise.get(
-                "{0}/config/endpoint/{1}".format(self.url_base, found_endpoint["SearchResult"]["resources"][0]["id"],)
+                "{0}/config/endpoint/{1}".format(
+                    self.url_base,
+                    found_endpoint["SearchResult"]["resources"][0]["id"],
+                )
             )
             logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
             if resp.status_code == 200:
@@ -334,7 +350,11 @@ class ERS:
         }
 
         logger.info("%s: Calling ise.post with data: %s", module, json.dumps(data))
-        resp = self.ise.post("{0}/config/endpoint".format(self.url_base), data=json.dumps(data), timeout=self.timeout,)
+        resp = self.ise.post(
+            "{0}/config/endpoint".format(self.url_base),
+            data=json.dumps(data),
+            timeout=self.timeout,
+        )
         logger.info("%s: Raw response returned from ISE: %s", module, resp)
         if resp.status_code == 201:
             result["success"] = True
@@ -392,7 +412,9 @@ class ERS:
 
         logger.info("%s: Calling ise.put with data: %s", module, json.dumps(data))
         resp = self.ise.put(
-            "{0}/config/endpoint/{1}".format(self.url_base, endpoint_id), data=json.dumps(data), timeout=self.timeout,
+            "{0}/config/endpoint/{1}".format(self.url_base, endpoint_id),
+            data=json.dumps(data),
+            timeout=self.timeout,
         )
         logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
         if resp.status_code == 200:
@@ -428,7 +450,10 @@ class ERS:
             endpoint_id = result["response"]["0"]["id"]
 
         logger.info("%s: Calling ise.delete with endpoint_id: %s", module, endpoint_id)
-        resp = self.ise.delete("{0}/config/endpoint/{1}".format(self.url_base, endpoint_id), timeout=self.timeout,)
+        resp = self.ise.delete(
+            "{0}/config/endpoint/{1}".format(self.url_base, endpoint_id),
+            timeout=self.timeout,
+        )
         logger.info("%s: Raw response returned from ISE: %s", module, resp)
 
         if resp.status_code == 204:
@@ -521,7 +546,9 @@ class ERS:
 
         if found_user["SearchResult"]["total"] == 1:
             logger.info(
-                "%s: Calling ise.get with user id: %s", module, found_user["SearchResult"]["resources"][0]["id"],
+                "%s: Calling ise.get with user id: %s",
+                module,
+                found_user["SearchResult"]["resources"][0]["id"],
             )
             resp = self.ise.get(
                 "{0}/config/internaluser/{1}".format(self.url_base, found_user["SearchResult"]["resources"][0]["id"])
@@ -549,7 +576,15 @@ class ERS:
         return result
 
     def add_user(
-        self, user_id, password, user_group_oid, enable="", first_name="", last_name="", email="", description="",
+        self,
+        user_id,
+        password,
+        user_group_oid,
+        enable="",
+        first_name="",
+        last_name="",
+        email="",
+        description="",
     ):  # pylint: disable=too-many-arguments
         """
         Add a user to the local user store
@@ -583,7 +618,9 @@ class ERS:
 
         logger.info("%s: Calling ise.post with data: %s", module, data.json())
         resp = self.ise.post(
-            "{0}/config/internaluser".format(self.url_base), data=json.dumps(data), timeout=self.timeout,
+            "{0}/config/internaluser".format(self.url_base),
+            data=json.dumps(data),
+            timeout=self.timeout,
         )
         logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
         if resp.status_code == 201:
@@ -612,7 +649,10 @@ class ERS:
         if found_user["SearchResult"]["total"] == 1:
             user_oid = found_user["SearchResult"]["resources"][0]["id"]
             logger.info("%s: Calling ise.delete with user_id: %s", module, user_oid)
-            resp = self.ise.delete("{0}/config/internaluser/{1}".format(self.url_base, user_oid), timeout=self.timeout,)
+            resp = self.ise.delete(
+                "{0}/config/internaluser/{1}".format(self.url_base, user_oid),
+                timeout=self.timeout,
+            )
             logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
 
             if resp.status_code == 204:
@@ -697,7 +737,9 @@ class ERS:
 
         if found_device["SearchResult"]["total"] == 1:
             logger.info(
-                "%s: Calling ise.get with device id: %s", module, found_device["SearchResult"]["resources"][0]["id"],
+                "%s: Calling ise.get with device id: %s",
+                module,
+                found_device["SearchResult"]["resources"][0]["id"],
             )
             resp = self.ise.get(
                 "{0}/config/networkdevice/{1}".format(self.url_base, found_device["SearchResult"]["resources"][0]["id"])
@@ -780,7 +822,9 @@ class ERS:
 
         logger.info("%s: Calling ise.post with data: %s", module, data.json())
         resp = self.ise.post(
-            "{0}/config/networkdevice".format(self.url_base), data=json.dumps(data), timeout=self.timeout,
+            "{0}/config/networkdevice".format(self.url_base),
+            data=json.dumps(data),
+            timeout=self.timeout,
         )
         logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
 
@@ -810,7 +854,8 @@ class ERS:
             device_oid = found_device["SearchResult"]["resources"][0]["id"]
             logger.info("%s: Calling ise.delete with device id: %s", module, device_oid)
             resp = self.ise.delete(
-                "{0}/config/networkdevice/{1}".format(self.url_base, device_oid), timeout=self.timeout,
+                "{0}/config/networkdevice/{1}".format(self.url_base, device_oid),
+                timeout=self.timeout,
             )
             logger.info("%s: Raw response returned from ISE: %s", module, resp.json())
 
